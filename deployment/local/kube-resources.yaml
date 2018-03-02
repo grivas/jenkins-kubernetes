@@ -1,0 +1,71 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: build-server
+  labels:
+    name: build-server
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: configuration
+  namespace: build-server
+type: Generic
+data:
+  jenkins-configuration.yaml: ${JENKINS_CONFIGURATION}
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: build-server
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: jenkins
+      labels:
+        app: jenkins
+    spec:
+      volumes:
+        - name: jenkins-configuration
+          secret:
+            secretName: configuration
+      containers:
+        - name: jenkins
+          image: grivas3/jenkins:0.3
+          ports:
+          - containerPort: 8080
+          - containerPort: 50000
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: jenkins-configuration
+            readOnly: true
+            mountPath: /etc/jenkins
+          env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /etc/jenkins/google_application_credentials.json
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: jenkins-master
+  namespace: build-server
+spec:
+  selector:
+    app: jenkins
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+    - name: http2
+      protocol: TCP
+      port: 8080
+    - name: slave
+      protocol: TCP
+      port: 50000
+  type: NodePort
